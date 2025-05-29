@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // Importar TextMeshPro
+using TMPro;
 using UnityEngine.SceneManagement;
 
 public class Ball : MonoBehaviour
@@ -20,46 +20,58 @@ public class Ball : MonoBehaviour
     public float lineLength = 2f;
     private Vector2 _launchDirection;
 
-    public TextMeshProUGUI strokeCounterText;  // Texto para el contador de golpes
-    private int strokeCount = 0;
+    private Vector3 lastPositionBeforeShot;
 
-    public TextMeshProUGUI timerText;          // Texto para el temporizador
-    private float timeRemaining = 60f;         // 1 minuto en segundos
 
-    private Vector3 ballStartPosition; // Para guardar la posición inicial de la pelota
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        lastPositionBeforeShot = transform.position;
 
-        // Obtener la posición inicial de la pelota al inicio del nivel
-        ballStartPosition = transform.position;
-
-        // Volver a encontrar las referencias de la UI y la línea si se cambió de escena
         if (directionLine == null)
         {
             directionLine = GetComponentInChildren<LineRenderer>();
             if (directionLine == null)
             {
-                Debug.LogError("LineRenderer no encontrado. Asegúrate de que esté asignado correctamente.");
+                Debug.LogError("LineRenderer no encontrado.");
             }
         }
 
-        if (strokeCounterText == null || timerText == null || forceSlider == null)
-        {
-            strokeCounterText = FindObjectOfType<TextMeshProUGUI>();
-            timerText = FindObjectOfType<TextMeshProUGUI>();
+        if (forceSlider == null)
             forceSlider = FindObjectOfType<Slider>();
-        }
-
-        // Inicializar el contador de golpes y temporizador
-        UpdateStrokeCounter();
-        UpdateTimerText();
     }
 
     void Update()
     {
-        Vector2 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        if (Time.timeScale == 0f) return;
+
+        // Consultar el tiempo restante desde GameManager
+        if (GameManager.Instance != null && GameManager.Instance.GetTimeRemaining() <= 0f)
+        {
+            return; // Tiempo terminado, no permitir acciones
+        }
+
+        Vector2 mousePosition = Vector2.zero;
+
+        if (Camera.main != null && Input.mousePresent)
+        {
+            Vector3 mousePos = Input.mousePosition;
+
+            if (mousePos.x >= 0 && mousePos.y >= 0 &&
+                mousePos.x <= Screen.width && mousePos.y <= Screen.height)
+            {
+                mousePosition = Camera.main.ScreenToWorldPoint(mousePos);
+            }
+            else
+            {
+                return;
+            }
+        }
+        else
+        {
+            return;
+        }
 
         if (_isCharging && directionLine != null)
         {
@@ -98,6 +110,9 @@ public class Ball : MonoBehaviour
         {
             Vector2 direction = _launchDirection.normalized;
             float force = _holdTime * forceMultiplier;
+
+            lastPositionBeforeShot = transform.position;
+
             rb.AddForce(direction * force, ForceMode2D.Impulse);
             _isCharging = false;
             _canShoot = false;
@@ -105,20 +120,13 @@ public class Ball : MonoBehaviour
             Invoke("HideSlider", 2f);
             directionLine.enabled = false;
 
-            strokeCount++;
-            UpdateStrokeCounter();
-
-            // Actualizar los strokes totales en GameManager
-            GameManager.Instance.AddStrokes(1); // Solo añadir 1 stroke cada vez
+            GameManager.Instance.AddStrokes(1);
         }
 
         if (!_canShoot && rb.velocity.magnitude < 0.1f)
         {
             ShowSlider();
         }
-
-        // Actualiza el temporizador
-        UpdateTimer();
     }
 
     void ShowDirectionLine(Vector2 targetPosition)
@@ -131,18 +139,14 @@ public class Ball : MonoBehaviour
     void HideSlider()
     {
         if (forceSlider != null)
-        {
             forceSlider.gameObject.SetActive(false);
-        }
     }
 
     void ShowSlider()
     {
         _canShoot = true;
         if (forceSlider != null)
-        {
             forceSlider.gameObject.SetActive(true);
-        }
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -151,7 +155,6 @@ public class Ball : MonoBehaviour
         {
             if (rb.velocity.magnitude < minSpeedToWin)
             {
-                // Esperar 2 segundos antes de informar al GameManager
                 Invoke("NotifyGameManagerAndLoadNextLevel", 2f);
             }
         }
@@ -159,54 +162,20 @@ public class Ball : MonoBehaviour
 
     private void NotifyGameManagerAndLoadNextLevel()
     {
-        // Reiniciar el contador de strokes y el temporizador
-        strokeCount = 0;
-        timeRemaining = 60f; // Resetear el temporizador
-
-        // Cargar el siguiente nivel con la posición de la pelota
-        GameManager.Instance.LoadLevel2(ballStartPosition);
+        GameManager.Instance.LoadNextLevel();
     }
 
-    public void RestartGame()
+
+    public void ResetLevelDataWithoutMovingBall()
     {
-        Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        _canShoot = true;
+        _isCharging = false;
     }
 
-    private void UpdateStrokeCounter()
+    public void ResetToLastPosition()
     {
-        if (strokeCounterText != null)
-        {
-            strokeCounterText.text = "Strokes: " + strokeCount.ToString();
-        }
-    }
-
-    private void UpdateTimer()
-    {
-        if (timeRemaining > 0)
-        {
-            timeRemaining -= Time.deltaTime;
-            UpdateTimerText();
-        }
-        else
-        {
-            timeRemaining = 0;
-            UpdateTimerText();
-
-            // Si el tiempo llega a 0, mostrar pantalla de derrota y detener el juego
-            GameManager.Instance.uiCanvas.SetActive(true);
-            GameManager.Instance.uiCanvas.GetComponentInChildren<TextMeshProUGUI>().text = "Time's Up!"; // Texto de derrota
-            Time.timeScale = 0f;
-        }
-    }
-
-    private void UpdateTimerText()
-    {
-        if (timerText != null)
-        {
-            int minutes = (int)(timeRemaining / 60); // Calcula los minutos
-            int seconds = (int)(timeRemaining - (minutes * 60)); // Calcula los segundos restantes
-            timerText.text = string.Format("Time: {0:00}:{1:00}", minutes, seconds);
-        }
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+        transform.position = lastPositionBeforeShot;
     }
 }
