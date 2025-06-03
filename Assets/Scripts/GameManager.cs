@@ -2,35 +2,48 @@
 using UnityEngine.SceneManagement;
 using TMPro;
 using UnityEngine.UI;
+using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
+    // Singleton pattern per accés global
     public static GameManager Instance { get; private set; }
 
-    public GameObject uiCanvas;
-    public TextMeshProUGUI strokeCounterText;
-    public TextMeshProUGUI timerText;
+    [Header("UI Elements")]
+    public GameObject uiCanvas;                   
+    public TextMeshProUGUI strokeCounterText;    
+    public TextMeshProUGUI timerText;           
 
-    public string[] levelNames;
+    [Header("Level Management")]
+    public string[] levelNames;                   
+    private int currentLevelIndex = 0;            
 
-    private int totalStrokes = 0;
-    private int currentLevelStrokes = 0;
-    private int currentLevelIndex = 0;
+    [Header("Game Stats")]
+    private int totalStrokes = 0;               
+    private int currentLevelStrokes = 0;         
+    private float timeRemaining = 90f;          
+    private bool timerRunning = false;           
 
-    private float timeRemaining = 90f;
-    private bool timerRunning = false;
+    [Header("References")]
+    public LevelPreviewController levelPreviewController;  // Controlador de previsualització de nivell
+    public CanvasGroup holeWinGroup;            
+    private GameObject currentLevelBall = null;   
 
-    public LevelPreviewController levelPreviewController; // Asigna esto desde el Inspector
-
-    private GameObject currentLevelBall = null;
+    [Header("Game End Screen")]
+    public GameObject gameEndScreen;              
+    public TextMeshProUGUI finalTimeText;         
+    public TextMeshProUGUI finalStrokesText;     
+    public Button returnToMenuButton;             
 
     void Awake()
     {
+        // Implementació del patró Singleton
         if (Instance == null)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            // Manté els objectes necessaris entre escenes
             if (uiCanvas != null)
                 DontDestroyOnLoad(uiCanvas);
 
@@ -38,6 +51,7 @@ public class GameManager : MonoBehaviour
             if (playerBall != null)
                 DontDestroyOnLoad(playerBall);
 
+            // Subscripció a l'event de càrrega d'escena
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
         else
@@ -46,54 +60,32 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Gestiona la càrrega de cada escena
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Destruye la pelota del nivel anterior si existe
+        // Neteja la bola del nivell anterior
         if (currentLevelBall != null)
         {
             Destroy(currentLevelBall);
             currentLevelBall = null;
         }
 
-        // Busca la pelota del nivel actual
+        // Troba la bola del nou nivell
         GameObject playerBall = GameObject.FindGameObjectWithTag("Player");
-
         if (playerBall == null)
         {
-            Debug.LogError("No se encontró la pelota con tag 'Player' en la escena.");
+            Debug.LogError("No s'ha trobat la bola amb tag 'Player' a l'escena.");
             return;
         }
 
-        currentLevelBall = playerBall; // Guarda referencia para destruirla al cargar siguiente nivel
+        currentLevelBall = playerBall;
 
-        // Buscar slider por tag
-        GameObject sliderGO = GameObject.FindGameObjectWithTag("Slider");
-        if (sliderGO != null)
-        {
-            Slider sliderComponent = sliderGO.GetComponent<Slider>();
-            if (sliderComponent != null)
-            {
-                Ball ballScript = playerBall.GetComponent<Ball>();
-                if (ballScript != null)
-                {
-                    ballScript.forceSlider = sliderComponent;
-                    sliderComponent.gameObject.SetActive(false); // Asegura que esté oculto al inicio
-                }
-            }
-            else
-            {
-                Debug.LogWarning("El objeto con tag 'Slider' no tiene componente Slider.");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("No se encontró ningún objeto con tag 'Slider'.");
-        }
+        // Reinicia les dades de la bola
+        Ball ballScript = playerBall.GetComponent<Ball>();
+        if (ballScript != null)
+            ballScript.ResetLevelDataWithoutMovingBall();
 
-        Ball ballScript2 = playerBall.GetComponent<Ball>();
-        if (ballScript2 != null)
-            ballScript2.ResetLevelDataWithoutMovingBall();
-
+        // Reinicia estadístiques del nivell
         currentLevelStrokes = 0;
         timeRemaining = 90f;
         timerRunning = true;
@@ -101,17 +93,16 @@ public class GameManager : MonoBehaviour
         UpdateStrokeUI();
         UpdateTimerUI();
 
+        // Mostra la previsualització del nivell
         if (levelPreviewController != null)
         {
             levelPreviewController.ShowLevelImage();
         }
     }
 
-
-
-
     void Update()
     {
+        // Actualitza el temporitzador si està actiu
         if (!timerRunning) return;
 
         if (timeRemaining > 0f)
@@ -123,30 +114,23 @@ public class GameManager : MonoBehaviour
             {
                 timeRemaining = 0;
                 timerRunning = false;
-                OnTimeUp();
+                OnTimeUp(); // Gestiona el final del temps
             }
         }
-
-    }
-    public int GetCurrentLevelIndex()
-    {
-        return currentLevelIndex;
     }
 
-
-    public float GetTimeRemaining()
-    {
-        return timeRemaining;
-    }
+    // Mètodes públics per accedir a dades del joc
+    public int GetCurrentLevelIndex() => currentLevelIndex;
+    public float GetTimeRemaining() => timeRemaining;
 
     public void AddStrokes(int strokes)
     {
         totalStrokes += strokes;
         currentLevelStrokes += strokes;
         UpdateStrokeUI();
-        Debug.Log($"Level Strokes: {currentLevelStrokes} | Total Strokes: {totalStrokes}");
     }
 
+    // Actualitza la UI dels strokes
     private void UpdateStrokeUI()
     {
         if (strokeCounterText == null)
@@ -156,6 +140,7 @@ public class GameManager : MonoBehaviour
             strokeCounterText.text = $"{currentLevelStrokes}";
     }
 
+    // Actualitza la UI del temporitzador
     private void UpdateTimerUI()
     {
         if (timerText == null)
@@ -169,6 +154,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Gestiona quan s'acaba el temps
     private void OnTimeUp()
     {
         if (uiCanvas != null)
@@ -176,11 +162,45 @@ public class GameManager : MonoBehaviour
             uiCanvas.SetActive(true);
             var text = uiCanvas.GetComponentInChildren<TextMeshProUGUI>();
             if (text != null)
-                text.text = "Time's Up!";
+                text.text = "Temps esgotat!";
         }
         Time.timeScale = 0f;
     }
 
+    // Mostra l'efecte de victòria i carrega el següent nivell
+    public void ShowHoleImageAndLoadNext()
+    {
+        StartCoroutine(FadeInHoleImageThenLoad());
+    }
+
+    // Coroutine per l'efecte de fade al completar nivell
+    private IEnumerator FadeInHoleImageThenLoad()
+    {
+        if (holeWinGroup != null)
+        {
+            holeWinGroup.gameObject.SetActive(true);
+            float duration = 0.5f;
+            float elapsed = 0f;
+
+            // Fade-in progressiu
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                holeWinGroup.alpha = Mathf.Clamp01(elapsed / duration);
+                yield return null;
+            }
+
+            holeWinGroup.alpha = 1f;
+            yield return new WaitForSeconds(0.7f); // Espera abans de canviar de nivell
+
+            holeWinGroup.gameObject.SetActive(false);
+            holeWinGroup.alpha = 0f;
+        }
+
+        LoadNextLevel();
+    }
+
+    // Carrega el següent nivell o mostra la pantalla final
     public void LoadNextLevel()
     {
         currentLevelIndex++;
@@ -190,18 +210,50 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("¡Has completado todos los niveles!");
-            if (uiCanvas != null)
-            {
-                uiCanvas.SetActive(true);
-                var text = uiCanvas.GetComponentInChildren<TextMeshProUGUI>();
-                if (text != null)
-                    text.text = $"¡Ganaste!\nTotal Strokes: {totalStrokes}";
-            }
-            Time.timeScale = 0f;
+            ShowGameEndScreen(); // Tots els nivells completats
         }
     }
 
+    // Mostra la pantalla de fi del joc
+    public void ShowGameEndScreen()
+    {
+        Time.timeScale = 0f;
+
+        if (gameEndScreen != null)
+        {
+            gameEndScreen.SetActive(true);
+
+            // Calcula i mostra el temps total
+            if (finalTimeText != null)
+            {
+                int minutes = (int)(90f - timeRemaining) / 60;
+                int seconds = (int)(90f - timeRemaining) % 60;
+                finalTimeText.text = $"Temps Total: {minutes:00}:{seconds:00}";
+            }
+
+            // Mostra els strokes totals
+            if (finalStrokesText != null)
+            {
+                finalStrokesText.text = $"Total Strokes: {totalStrokes}";
+            }
+
+            // Configura el botó de tornada al menú
+            if (returnToMenuButton != null)
+            {
+                returnToMenuButton.onClick.RemoveAllListeners();
+                returnToMenuButton.onClick.AddListener(() =>
+                {
+                    if (gameEndScreen != null)
+                        gameEndScreen.SetActive(false);
+
+                    Time.timeScale = 1f;
+                    ResetGame(); // Reinicia el joc
+                });
+            }
+        }
+    }
+
+    // Reinicia totes les dades del joc
     public void ResetGame()
     {
         currentLevelIndex = 0;

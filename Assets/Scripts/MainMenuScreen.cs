@@ -1,36 +1,80 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class MainMenuScreen : MonoBehaviour
 {
-    public GameObject mainMenuPanel;
-    public GameObject settingsPanel;
+    // Configuració dels panels del menú principal
+    [Header("UI References")]
+    [SerializeField] private GameObject mainMenuPanel;     
+    [SerializeField] private GameObject settingsPanel;      
+    [SerializeField] private GameObject playerNamePanel;   
+    [SerializeField] private TMP_InputField playerNameInput;
+    [SerializeField] private Button playButton;            
 
-    public Button startButton;
-    public Button settingsButton;
-    public Button quitButton;
+    // Configuració dels botons principals
+    [Header("Buttons")]
+    [SerializeField] private Button startButton;   
+    [SerializeField] private Button settingsButton;
+    [SerializeField] private Button quitButton;    
 
-    public LevelPreviewController previewController;
+    // Altres components necessaris
+    [Header("Other References")]
+    [SerializeField] private LevelPreviewController previewController; 
+    [SerializeField] private AudioClip buttonClickSound;
 
+    private AudioSource audioSource; 
+    public static string PlayerName { get; private set; } = "Player";
+
+    void Awake()
+    {
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+
+        if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (playerNamePanel != null) playerNamePanel.SetActive(false);
+    }
 
     void Start()
     {
-        startButton.onClick.AddListener(OnStartClicked);
-        settingsButton.onClick.AddListener(OnSettingsClicked);
-        quitButton.onClick.AddListener(OnQuitClicked);
+        startButton?.onClick.AddListener(OnStartClicked);
+        settingsButton?.onClick.AddListener(OnSettingsClicked);
+        quitButton?.onClick.AddListener(OnQuitClicked);
+        playButton?.onClick.AddListener(OnPlayClicked);
 
-        Time.timeScale = 0f; // Pausar el juego mientras se muestra el menú
+        Time.timeScale = 0f;
     }
 
-    void OnStartClicked()
+    // Gestiona el clic al botó d'inici
+    private void OnStartClicked()
     {
-        if (mainMenuPanel != null)
-            mainMenuPanel.SetActive(false);
+        PlayClickSound();
 
-        Time.timeScale = 1f; // Reanudar el juego
+        mainMenuPanel?.SetActive(false);
+        playerNamePanel?.SetActive(true);
 
-        if (previewController != null)
-            previewController.ShowLevelImage();
+        // Selecciona automàticament el camp de text
+        playerNameInput?.Select();
+    }
+
+    private void OnPlayClicked()
+    {
+        PlayClickSound();
+
+        // Guarda el nom si s'ha introduït
+        if (!string.IsNullOrWhiteSpace(playerNameInput?.text))
+        {
+            PlayerName = playerNameInput.text;
+            PlayerPrefs.SetString("LastPlayerName", PlayerName);
+            PlayerPrefs.Save();
+        }
+
+        playerNamePanel?.SetActive(false);
+        Time.timeScale = 1f;
+
+        previewController?.ShowLevelImage();
     }
 
     void OnSettingsClicked()
@@ -44,7 +88,15 @@ public class MainMenuScreen : MonoBehaviour
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else
-        Application.Quit();
+            Application.Quit();
 #endif
+    }
+
+    void PlayClickSound()
+    {
+        if (buttonClickSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(buttonClickSound);
+        }
     }
 }

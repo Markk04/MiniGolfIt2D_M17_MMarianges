@@ -301,6 +301,6 @@ MonoBehaviour:
   forceMultiplier: 15
   maxHoldTime: 1
   minSpeedToWin: 2.7
-  forceSlider: {fileID: 0}
+  forceSlider: {fileID: 8996263984398716266, guid: 3636b33ec41efa64eb1f71b9fca0d7c7, type: 3}
   directionLine: {fileID: 6459882708596987838}
   lineLength: 1
